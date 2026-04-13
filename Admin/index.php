@@ -1,262 +1,173 @@
-
 <?php 
 include '../Includes/dbcon.php';
 include '../Includes/session.php';
+include 'Includes/chart-functions.php';
 
+// Form Inputs
+$selectedStudent = $_POST['admissionNo'] ?? '';
+$selectedClass = $_POST['classId'] ?? '';
+$selectedArm = $_POST['classArmId'] ?? '';
+$selectedSession = $_POST['sessionId'] ?? '';
+$selectedMonth = $_POST['month'] ?? date('m');
+$selectedYear = $_POST['year'] ?? date('Y');
 
-    $query = "SELECT tblclass.className,tblclassarms.classArmName 
-    FROM tblclassteacher
-    INNER JOIN tblclass ON tblclass.Id = tblclassteacher.classId
-    INNER JOIN tblclassarms ON tblclassarms.Id = tblclassteacher.classArmId
-    Where tblclassteacher.Id = '$_SESSION[userId]'";
+// Global Counters for Stats Cards
+$totalStudents = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM tblstudents"));
+$totalTeachers = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM tblclassteacher"));
+$totalClassArms = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM tblclassarms"));
 
-    $rs = $conn->query($query);
-    $num = $rs->num_rows;
-    $rrw = $rs->fetch_assoc();
-
-
+// Calendar Logic
+$calendarData = (!empty($selectedStudent)) ? getCalendarData($conn, $selectedStudent, $selectedMonth, $selectedYear) : [];
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <meta name="description" content="">
-  <meta name="author" content="">
-  <link href="img/logo/attnlg.jpg" rel="icon">
-  <title>Dashboard</title>
+  <title>AMS Dashboard | Admin</title>
   <link href="../vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
   <link href="../vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css">
   <link href="css/ruang-admin.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8f9fc; }
+    .stat-card-link { text-decoration: none !important; transition: all 0.3s ease; display: block; }
+    .stat-card-link:hover { transform: translateY(-5px); }
+    .interactive-card { border-radius: 20px; border: none; overflow: hidden; position: relative; }
+    .card-icon-bg { position: absolute; right: -10px; bottom: -10px; font-size: 5rem; opacity: 0.1; transform: rotate(-15deg); }
+    
+    /* Calendar UI */
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
+    .day-cell { height: 65px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: bold; border: 1px solid #edf2f7; background: #fff; transition: 0.2s; position: relative; }
+    .bg-present { background-color: #1cc88a !important; color: white !important; border: none; box-shadow: 0 4px 10px rgba(28, 200, 138, 0.2); }
+    .bg-absent { background-color: #e74a3b !important; color: white !important; border: none; box-shadow: 0 4px 10px rgba(231, 74, 59, 0.2); }
+    .day-label { text-align: center; font-size: 0.75rem; font-weight: 800; color: #4e73df; text-transform: uppercase; padding-bottom: 10px; }
+    
+    .filter-card { border-radius: 20px; border: none; background: #fff; }
+    .form-control-sm { border-radius: 10px; height: 40px; }
+  </style>
 </head>
 
 <body id="page-top">
   <div id="wrapper">
-    <!-- Sidebar -->
-   <?php include "Includes/sidebar.php";?>
-    <!-- Sidebar -->
+    <?php include "Includes/sidebar.php";?>
     <div id="content-wrapper" class="d-flex flex-column">
       <div id="content">
-        <!-- TopBar -->
-           <?php include "Includes/topbar.php";?>
-        <!-- Topbar -->
-        <!-- Container Fluid-->
-        <div class="container-fluid" id="container-wrapper">
-          <div class="d-sm-flex align-items-center justify-content-between mb-4">
-            <h1 class="h3 mb-0 text-gray-800">Administrator Dashboard</h1>
-            <ol class="breadcrumb">
-              <li class="breadcrumb-item"><a href="./">Home</a></li>
-              <li class="breadcrumb-item active" aria-current="page">Dashboard</li>
-            </ol>
+        <?php include "Includes/topbar.php";?>
+
+        <div class="container-fluid">
+          <div class="row mb-4">
+            <div class="col-xl-4 col-md-6 mb-4">
+              <a href="manageStudents.php" class="stat-card-link">
+                <div class="card interactive-card bg-gradient-primary text-white p-4 shadow-sm">
+                  <div class="h2 font-weight-bold mb-0"><?php echo $totalStudents; ?></div>
+                  <div class="font-weight-bold">Total Students</div>
+                  <i class="fas fa-user-graduate card-icon-bg"></i>
+                </div>
+              </a>
+            </div>
+            <div class="col-xl-4 col-md-6 mb-4">
+              <a href="createClassTeacher.php" class="stat-card-link">
+                <div class="card interactive-card bg-gradient-success text-white p-4 shadow-sm">
+                  <div class="h2 font-weight-bold mb-0"><?php echo $totalTeachers; ?></div>
+                  <div class="font-weight-bold">Total Teachers</div>
+                  <i class="fas fa-chalkboard-teacher card-icon-bg"></i>
+                </div>
+              </a>
+            </div>
+            <div class="col-xl-4 col-md-6 mb-4">
+              <a href="createClassArms.php" class="stat-card-link">
+                <div class="card interactive-card bg-gradient-info text-white p-4 shadow-sm">
+                  <div class="h2 font-weight-bold mb-0"><?php echo $totalClassArms; ?></div>
+                  <div class="font-weight-bold">Total Class Arms</div>
+                  <i class="fas fa-door-open card-icon-bg"></i>
+                </div>
+              </a>
+            </div>
           </div>
 
-          <div class="row mb-3">
-          <!-- Students Card -->
-          <?php 
-$query1=mysqli_query($conn,"SELECT * from tblstudents");                       
-$students = mysqli_num_rows($query1);
-?>
-            <div class="col-xl-3 col-md-6 mb-4">
-              <div class="card h-100">
-                <div class="card-body">
-                  <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                      <div class="text-xs font-weight-bold text-uppercase mb-1">Students</div>
-                      <div class="h5 mb-0 mr-3 font-weight-bold text-gray-800"><?php echo $students;?></div>
-                      <div class="mt-2 mb-0 text-muted text-xs">
-                        <!-- <span class="text-success mr-2"><i class="fas fa-arrow-up"></i> 20.4%</span>
-                        <span>Since last month</span> -->
-                      </div>
-                    </div>
-                    <div class="col-auto">
-                      <i class="fas fa-users fa-2x text-info"></i>
-                    </div>
-                  </div>
+          <div class="card filter-card mb-4 shadow-sm">
+            <div class="card-body">
+              <form method="POST" action="index.php" class="row align-items-end">
+                <div class="col-md-2 mb-2">
+                  <label class="small font-weight-bold">Class</label>
+                  <select name="classId" class="form-control form-control-sm">
+                    <option value="">-- Class --</option>
+                    <?php 
+                    $classes = mysqli_query($conn, "SELECT * FROM tblclass");
+                    while($c = mysqli_fetch_assoc($classes)) echo "<option value='".$c['Id']."' ".($selectedClass == $c['Id'] ? 'selected':'').">".$c['className']."</option>";
+                    ?>
+                  </select>
                 </div>
+                <div class="col-md-3 mb-2">
+                  <label class="small font-weight-bold">Student</label>
+                  <select name="admissionNo" class="form-control form-control-sm" required>
+                    <option value="">-- Select Student --</option>
+                    <?php 
+                    $stds = mysqli_query($conn, "SELECT admissionNumber, firstName, lastName FROM tblstudents");
+                    while($st = mysqli_fetch_assoc($stds)) echo "<option value='".$st['admissionNumber']."' ".($selectedStudent == $st['admissionNumber'] ? 'selected':'').">".$st['firstName']." ".$st['lastName']."</option>";
+                    ?>
+                  </select>
+                </div>
+                <div class="col-md-2 mb-2">
+                  <label class="small font-weight-bold">Month</label>
+                  <select name="month" class="form-control form-control-sm">
+                    <?php for($m=1;$m<=12;$m++) echo "<option value='$m' ".($selectedMonth == $m ? 'selected':'').">".date('F', mktime(0,0,0,$m,1))."</option>"; ?>
+                  </select>
+                </div>
+                <div class="col-md-2 mb-2">
+                  <label class="small font-weight-bold">Year</label>
+                  <select name="year" class="form-control form-control-sm">
+                    <?php for($y=date('Y');$y>=2023;$y--) echo "<option value='$y' ".($selectedYear == $y ? 'selected':'').">$y</option>"; ?>
+                  </select>
+                </div>
+                <div class="col-md-2 mb-2">
+                  <button type="submit" class="btn btn-primary btn-block shadow-sm" style="border-radius:10px; height:40px; font-weight:700;">View Report</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <?php if(!empty($calendarData)): ?>
+          <div class="card shadow-sm border-0 mb-5" style="border-radius:25px;">
+            <div class="card-header bg-white py-4 border-0">
+              <h5 class="m-0 font-weight-bold text-dark text-center">
+                Attendance for <?php echo date('F Y', mktime(0,0,0,$selectedMonth, 1, $selectedYear)); ?>
+              </h5>
+            </div>
+            <div class="card-body p-4">
+              <div class="calendar-grid">
+                <?php 
+                foreach(['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] as $d) echo "<div class='day-label'>$d</div>";
+                $offset = date('w', mktime(0, 0, 0, $selectedMonth, 1, $selectedYear));
+                for($i=0; $i<$offset; $i++) echo "<div></div>";
+                
+                foreach($calendarData as $day => $info): 
+                  $statusClass = ($info['status'] == '1') ? "bg-present" : (($info['status'] == '0') ? "bg-absent" : "");
+                ?>
+                  <div class="day-cell <?php echo $statusClass; ?>">
+                    <?php echo $day; ?>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+              
+              <div class="d-flex justify-content-center mt-4">
+                <div class="small mr-4"><span class="badge bg-present mr-2">&nbsp;</span> Present</div>
+                <div class="small"><span class="badge bg-absent mr-2">&nbsp;</span> Absent</div>
               </div>
             </div>
-            <!-- Class Card -->
-             <?php 
-$query1=mysqli_query($conn,"SELECT * from tblclass");                       
-$class = mysqli_num_rows($query1);
-?>
-            <div class="col-xl-3 col-md-6 mb-4">
-              <div class="card h-100">
-                <div class="card-body">
-                  <div class="row align-items-center">
-                    <div class="col mr-2">
-                      <div class="text-xs font-weight-bold text-uppercase mb-1">Classes</div>
-                      <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $class;?></div>
-                      <div class="mt-2 mb-0 text-muted text-xs">
-                        <!-- <span class="text-success mr-2"><i class="fa fa-arrow-up"></i> 3.48%</span>
-                        <span>Since last month</span> -->
-                      </div>
-                    </div>
-                    <div class="col-auto">
-                      <i class="fas fa-chalkboard fa-2x text-primary"></i>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <!-- Class Arm Card -->
-             <?php 
-$query1=mysqli_query($conn,"SELECT * from tblclassarms");                       
-$classArms = mysqli_num_rows($query1);
-?>
-            <div class="col-xl-3 col-md-6 mb-4">
-              <div class="card h-100">
-                <div class="card-body">
-                  <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                      <div class="text-xs font-weight-bold text-uppercase mb-1">Class Arms</div>
-                      <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $classArms;?></div>
-                      <div class="mt-2 mb-0 text-muted text-xs">
-                        <!-- <span class="text-success mr-2"><i class="fas fa-arrow-up"></i> 12%</span>
-                        <span>Since last years</span> -->
-                      </div>
-                    </div>
-                    <div class="col-auto">
-                      <i class="fas fa-code-branch fa-2x text-success"></i>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Std Att Card  -->
-            <?php 
-$query1=mysqli_query($conn,"SELECT * from tblattendance");                       
-$totAttendance = mysqli_num_rows($query1);
-?>
-            <div class="col-xl-3 col-md-6 mb-4">
-              <div class="card h-100">
-                <div class="card-body">
-                  <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                      <div class="text-xs font-weight-bold text-uppercase mb-1">Total Student Attendance</div>
-                      <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $totAttendance;?></div>
-                      <div class="mt-2 mb-0 text-muted text-xs">
-                        <!-- <span class="text-danger mr-2"><i class="fas fa-arrow-down"></i> 1.10%</span>
-                        <span>Since yesterday</span> -->
-                      </div>
-                    </div>
-                    <div class="col-auto">
-                      <i class="fas fa-calendar fa-2x text-secondary"></i>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Teachers Card  -->
-            <?php 
-            $query1=mysqli_query($conn,"SELECT * from tblclassteacher");                       
-            $classTeacher = mysqli_num_rows($query1);
-            ?>
-                        <div class="col-xl-3 col-md-6 mb-4">
-                          <div class="card h-100">
-                            <div class="card-body">
-                              <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                  <div class="text-xs font-weight-bold text-uppercase mb-1">Class Teachers</div>
-                                  <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $classTeacher;?></div>
-                                  <div class="mt-2 mb-0 text-muted text-xs">
-                                    <!-- <span class="text-success mr-2"><i class="fas fa-arrow-up"></i> 12%</span>
-                                    <span>Since last years</span> -->
-                                  </div>
-                                </div>
-                                <div class="col-auto">
-                                  <i class="fas fa-chalkboard-teacher fa-2x text-danger"></i>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-          
-
-                         <!-- Session and Terms Card  -->
-            <?php 
-            $query1=mysqli_query($conn,"SELECT * from tblsessionterm");                       
-            $sessTerm = mysqli_num_rows($query1);
-            ?>
-                        <div class="col-xl-3 col-md-6 mb-4">
-                          <div class="card h-100">
-                            <div class="card-body">
-                              <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                  <div class="text-xs font-weight-bold text-uppercase mb-1">Session & Terms</div>
-                                  <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $sessTerm;?></div>
-                                  <div class="mt-2 mb-0 text-muted text-xs">
-                                    <!-- <span class="text-success mr-2"><i class="fas fa-arrow-up"></i> 12%</span>
-                                    <span>Since last years</span> -->
-                                  </div>
-                                </div>
-                                <div class="col-auto">
-                                  <i class="fas fa-calendar-alt fa-2x text-warning"></i>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-
-                        <!-- Terms Card  -->
-            <?php 
-            $query1=mysqli_query($conn,"SELECT * from tblterm");                       
-            $termonly = mysqli_num_rows($query1);
-            ?>
-                        <div class="col-xl-3 col-md-6 mb-4">
-                          <div class="card h-100">
-                            <div class="card-body">
-                              <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                  <div class="text-xs font-weight-bold text-uppercase mb-1">Terms</div>
-                                  <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $termonly;?></div>
-                                  <div class="mt-2 mb-0 text-muted text-xs">
-                                    <!-- <span class="text-success mr-2"><i class="fas fa-arrow-up"></i> 12%</span>
-                                    <span>Since last years</span> -->
-                                  </div>
-                                </div>
-                                <div class="col-auto">
-                                  <i class="fas fa-th fa-2x text-info"></i>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-          <!--Row-->
-
-          <!-- <div class="row">
-            <div class="col-lg-12 text-center">
-              <p>Do you like this template ? you can download from <a href="https://github.com/indrijunanda/RuangAdmin"
-                  class="btn btn-primary btn-sm" target="_blank"><i class="fab fa-fw fa-github"></i>&nbsp;GitHub</a></p>
-            </div>
-          </div> -->
-
+          </div>
+          <?php endif; ?>
         </div>
-        <!---Container Fluid-->
       </div>
-      <!-- Footer -->
-      <?php include 'includes/footer.php';?>
-      <!-- Footer -->
+      <?php include 'Includes/footer.php';?>
     </div>
   </div>
 
-  <!-- Scroll to top -->
-  <a class="scroll-to-top rounded" href="#page-top">
-    <i class="fas fa-angle-up"></i>
-  </a>
-
   <script src="../vendor/jquery/jquery.min.js"></script>
   <script src="../vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-  <script src="../vendor/jquery-easing/jquery.easing.min.js"></script>
   <script src="js/ruang-admin.min.js"></script>
-  <script src="../vendor/chart.js/Chart.min.js"></script>
-  <script src="js/demo/chart-area-demo.js"></script>  
 </body>
-
 </html>
